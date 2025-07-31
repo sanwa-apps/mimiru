@@ -22,7 +22,7 @@ app = FastAPI()
 
 # Google AI Studioで取得したAPIキーを設定
 # 実際の運用では環境変数として設定するのが安全です
-os.environ["GOOGLE_API_KEY"] = "AIzaSyAaU9XF_osUpjeYD9OSvaV8wp0h5WGsRrA"
+os.environ["GOOGLE_API_KEY"] = "YOUR_GOOGLE_API_KEY_HERE"
 
 # パスワードをハッシュ化（暗号化）するための設定
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -89,9 +89,9 @@ def login_for_access_token(form_data: UserLogin):
     access_token = f"dummy_token_for_user_{user['id']}"
     return {"access_token": access_token, "token_type": "bearer"}
 
-# 3. PDFアップロードAPI (★新規追加★)
+# 3. PDFアップロードAPI (★asyncに変更★)
 @app.post("/upload", status_code=status.HTTP_200_OK)
-def upload_pdf(user_id: int = Form(...), file: UploadFile = File(...)):
+async def upload_pdf(user_id: int = Form(...), file: UploadFile = File(...)):
     # ユーザーが存在するか確認 (本来はトークンで認証)
     user = next((u for u in fake_users_db if u["id"] == user_id), None)
     if not user:
@@ -101,14 +101,13 @@ def upload_pdf(user_id: int = Form(...), file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="PDFファイルのみアップロードできます。")
 
     try:
-        # 1. PDFを読み込む
-        pdf_bytes = file.file.read()
-        temp_pdf = io.BytesIO(pdf_bytes)
+        # 1. PDFを非同期で読み込む
+        pdf_bytes = await file.read()
         
         # PyPDFLoaderはファイルパスを要求するため、一時ファイルとして保存する
         temp_pdf_path = f"/tmp/{file.filename}"
         with open(temp_pdf_path, "wb") as f:
-            f.write(temp_pdf.getbuffer())
+            f.write(pdf_bytes)
             
         loader = PyPDFLoader(temp_pdf_path)
         documents = loader.load()
@@ -132,9 +131,9 @@ def upload_pdf(user_id: int = Form(...), file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"ファイルの処理中にエラーが発生しました: {e}")
 
 
-# 4. チャットAPI (★新規追加★)
+# 4. チャットAPI (★asyncに変更★)
 @app.post("/chat", response_model=ChatResponse)
-def chat_with_bot(request: ChatRequest):
+async def chat_with_bot(request: ChatRequest):
     user_id = request.user_id
     question = request.question
 
@@ -148,16 +147,14 @@ def chat_with_bot(request: ChatRequest):
         llm = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0, convert_system_message_to_human=True)
         
         # RAGチェーンを作成
-        # retriever: 関連情報を検索する役
-        # llm: 検索結果と質問を元に回答を生成する役
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm,
             retriever=vector_store.as_retriever(),
             return_source_documents=False
         )
         
-        # 質問を実行し、回答を取得
-        result = qa_chain({"question": question, "chat_history": []})
+        # 質問を非同期で実行し、回答を取得
+        result = await qa_chain.ainvoke({"question": question, "chat_history": []})
         
         return {"answer": result["answer"]}
 
