@@ -22,7 +22,7 @@ app = FastAPI()
 
 # Google AI Studioで取得したAPIキーを設定
 # 実際の運用では環境変数として設定するのが安全です
-os.environ["GOOGLE_API_KEY"] = "YOUR_GOOGLE_API_KEY_HERE"
+os.environ["GOOGLE_API_KEY"] = "AIzaSyAaU9XF_osUpjeYD9OSvaV8wp0h5WGsRrA"
 
 # パスワードをハッシュ化（暗号化）するための設定
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
